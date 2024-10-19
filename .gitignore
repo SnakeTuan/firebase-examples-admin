@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# firebase
+config/test-project-80867-firebase-adminsdk-z13vz-a35db3ec69.json

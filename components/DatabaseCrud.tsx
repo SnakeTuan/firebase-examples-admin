@@ -1,13 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react'
-import { db } from '@/config/firebase'
-
 
 export function DatabaseCRUD() {
   const [users, setUsers] = useState<any[]>([])
@@ -15,13 +12,17 @@ export function DatabaseCRUD() {
   const [newUserName, setNewUserName] = useState('')
   const [newUserEmail, setNewUserEmail] = useState('')
   const [editingUser, setEditingUser] = useState<any>(null)
-  
-  // Fetch all users from 'users' collection
+
+  // Fetch all users from API
   const fetchUsers = async () => {
     setLoading(true)
-    const getCollection = await getDocs(collection(db, 'users'))
-    const fetchedUsers = getCollection.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    setUsers(fetchedUsers)
+    try {
+      const res = await fetch('/api/database/getUser')
+      const data = await res.json()
+      setUsers(data)
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
     setLoading(false)
   }
 
@@ -29,52 +30,93 @@ export function DatabaseCRUD() {
     fetchUsers()
   }, [])
 
-  // Add a new user to 'users' collection
+  // Add a new user
   const addUser = async () => {
     if (newUserName.trim() === '' || newUserEmail.trim() === '') {
       return alert('Please fill in all the fields')
     }
-    await addDoc(collection(db, 'users'), { 
-      name: newUserName, 
-      email: newUserEmail 
-    })
-    setNewUserName('')
-    setNewUserEmail('')
-    fetchUsers()
-    alert('User added successfully')
+    try {
+      const res = await fetch('/api/database/addUser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newUserName, email: newUserEmail }),
+      })
+      if (res.ok) {
+        setNewUserName('')
+        setNewUserEmail('')
+        fetchUsers()
+        alert('User added successfully')
+      } 
+      else {
+        const errorData = await res.json()
+        alert(errorData.error || 'Failed to add user')
+      }
+    } 
+    catch (error) {
+      console.error('Error adding user:', error)
+      alert('Failed to add user')
+    }
   }
 
-  // Update an existing user in 'users' collection
+  // Update an existing user
   const updateUser = async () => {
     if (editingUser && (editingUser.name.trim() === '' || editingUser.email.trim() === '')) {
       return alert('Please fill in all the fields')
     }
     try {
-      await updateDoc(doc(db, 'users', editingUser.id), { 
-        name: editingUser.name, 
-        email: editingUser.email 
+      const res = await fetch('/api/database/editUser', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingUser.id, name: editingUser.name, email: editingUser.email }),
       })
-      setEditingUser(null)
-      fetchUsers()
-      alert('User updated successfully')
-    } catch (error) {
+      if (res.ok) {
+        setEditingUser(null)
+        fetchUsers()
+        alert('User updated successfully')
+      }
+      else {
+        const errorData = await res.json()
+        alert(errorData.error || 'Failed to update user')
+      }
+    }
+    catch (error) {
       console.error('Error updating user:', error)
+      alert('Failed to update user')
     }
   }
 
-  // Delete a user from 'users' collection
+  // Delete a user
   const deleteUser = async (id: string) => {
-    await deleteDoc(doc(db, 'users', id))
-    fetchUsers()
+    if (!confirm('Are you sure you want to delete this user?')){
+      return
+    }
+
+    try {
+      const res = await fetch('/api/database/deleteUser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        fetchUsers()
+        alert('User deleted successfully')
+      }
+      else {
+        const errorData = await res.json()
+        alert(errorData.error || 'Failed to delete user')
+      }
+    }
+    catch (error) {
+      console.error('Error deleting user:', error)
+      alert('Failed to delete user')
+    }
   }
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6 text-center">Firebase Users CRUD Example</h1>
       
-
       <div className="mb-6">
-
         {/* Add a user to 'users' collection */}
         <div className="flex gap-4 mb-4">
           <Input
@@ -96,7 +138,6 @@ export function DatabaseCRUD() {
             Add User
           </Button>
         </div>
-
       </div>
 
       {loading ? (

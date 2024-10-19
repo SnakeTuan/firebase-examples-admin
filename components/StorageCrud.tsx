@@ -1,37 +1,28 @@
 'use client'
 
 import { useState, useEffect, ChangeEvent } from 'react'
-import { 
-  getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp 
-} from 'firebase/firestore'
-import { 
-  getStorage, ref, uploadBytes, getDownloadURL, deleteObject 
-} from 'firebase/storage'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react'
-import { db, storage } from '@/config/firebase'
-
-interface User {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-}
 
 export function StorageCrud() {
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
 
-  // Fetch all users from 'users' collection
+  // Fetch all users from API
   const fetchUsers = async () => {
     setLoading(true)
-    const getCollection = await getDocs(collection(db, 'users'))
-    const fetchedUsers = getCollection.docs.map(doc => ({ id: doc.id, ...doc.data() } as User))
-    setUsers(fetchedUsers)
+    try {
+      const res = await fetch('/api/database/getUser')
+      const data = await res.json()
+      setUsers(data)
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
     setLoading(false)
   }
 
@@ -39,96 +30,30 @@ export function StorageCrud() {
     fetchUsers()
   }, [])
 
-  // For showing the image input after selecting it
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0])
-    }
+    const file = e.target.files?.[0]
+    setSelectedFile(file || null)
   }
 
-  // Upload image to firebase storage
-  const uploadAvatar = async (userId: string) => {
-    if (!selectedFile){
-      console.log('No file selected')
-      return
-    }
-    setUploading(true)
+  const uploadAvatar = async (userId: string, e: React.SyntheticEvent) => {
+    e.preventDefault()
 
-    try {
-      // Upload image to firebase storage
-      const storageRef = ref(storage, `users/${userId}/avatar.jpg`)
-      await uploadBytes(storageRef, selectedFile)
-
-      // Get the url of the image and update the user's avatarUrl
-      const url = await getDownloadURL(storageRef)
-      const userRef = doc(db, 'users', userId)
-      await updateDoc(userRef, { avatarUrl: url })
-  
-    } catch (error) {
-      console.error('Error uploading avatar:', error)
-    }
-    
-    setEditingUserId(null)
-    setSelectedFile(null)
-    setUploading(false)
-    fetchUsers()
-  }
-
-  // Delete avatar
-  const deleteAvatar = async (user: User) => {
-    if (!user.avatarUrl){
-      console.log('No avatar to delete')
-      return
-    }
-    setUploading(true)
-
-    try {
-      // Delete the image from firebase storage
-      const avaPath = 'users/' + user.id + '/avatar.jpg'
-      const storageRef = ref(storage, avaPath)
-      await deleteObject(storageRef)
-
-      // Update the user's avatarUrl to null
-      const userRef = doc(db, 'users', user.id)
-      await updateDoc(userRef, { avatarUrl: null })
-
-    } catch (error) {
-      console.error('Error deleting avatar:', error)
-    }
-
-    setUploading(false)
-    fetchUsers()
-  }
-
-  // Edit avatar: combine both upload and delete
-  const editAvatar = async (userId: string) => {
     if (!selectedFile) return
-    setUploading(true)
-    try {
-      // Delete the current avatar if it exists
-      const user = users.find(u => u.id === userId) 
-      if (user && user.avatarUrl) {
-        const avatarPath = `users/${userId}/avatar.jpg`
-        const storageRef = ref(storage, avatarPath)
-        await deleteObject(storageRef)
-      }
-      
-      // Upload the new avatar
-      const storageRef = ref(storage, `users/${userId}/avatar.jpg`)
-      await uploadBytes(storageRef, selectedFile)
-      const url = await getDownloadURL(storageRef)
-      const userRef = doc(db, 'users', userId)
-      await updateDoc(userRef, { avatarUrl: url })
 
-    } catch (error) {
-      console.error("Error editing avatar:", error)
-    }
+    const formData = new FormData()
+    formData.append('file', selectedFile)
+    formData.append('userId', userId)
 
-    setUploading(false)
-    setSelectedFile(null)
-    setEditingUserId(null) // Close the modal after successful edit
-    fetchUsers()
+    const res = await fetch('/api/storage/uploadFile', {
+      method: 'POST',
+      body: formData
+    })
+
+    const data = await res.json()
+    console.log("Upload Avatar Response:", formData)
+    
   }
+
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">
@@ -175,7 +100,8 @@ export function StorageCrud() {
                       <Button 
                         variant="destructive" 
                         size="sm" 
-                        onClick={() => deleteAvatar(user)}
+                        // onClick={() => deleteAvatar(user)}
+                        className="text-white hover:text-red-700"
                       >
                         <Trash2 size={16} />
                       </Button>
@@ -212,13 +138,7 @@ export function StorageCrud() {
                   Cancel
                 </Button>
                 <Button 
-                  onClick={() => {
-                    if (users.find(u => u.id === editingUserId)?.avatarUrl) {
-                      editAvatar(editingUserId)
-                    } else {
-                      uploadAvatar(editingUserId)
-                    }
-                  }}
+                  onClick={(e) => uploadAvatar(editingUserId, e)}
                   disabled={!selectedFile || uploading}
                 >
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit'}

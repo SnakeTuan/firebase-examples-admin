@@ -37,6 +37,7 @@ export function StorageCrud() {
 
   const uploadAvatar = async (userId: string, e: React.SyntheticEvent) => {
     e.preventDefault()
+    setUploading(true)
 
     if (!selectedFile) return
 
@@ -50,10 +51,25 @@ export function StorageCrud() {
     })
 
     const data = await res.json()
-    console.log("Upload Avatar Response:", formData)
+    console.log("Upload Avatar Response:", data)
     
+    setSelectedFile(null)
+    setEditingUserId(null)
+    setUploading(false)
+    fetchUsers()
   }
 
+  const deleteAvatar = async (userId: string) => {
+    const res = await fetch('/api/storage/deleteFile', {
+      method: 'POST',
+      body: JSON.stringify({ userId })
+    })
+
+    const data = await res.json()
+    console.log("Delete Avatar Response:", data)
+
+    fetchUsers()
+  }
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">
@@ -100,7 +116,7 @@ export function StorageCrud() {
                       <Button 
                         variant="destructive" 
                         size="sm" 
-                        // onClick={() => deleteAvatar(user)}
+                        onClick={() => deleteAvatar(user.id)}
                         className="text-white hover:text-red-700"
                       >
                         <Trash2 size={16} />
